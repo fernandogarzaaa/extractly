@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Extractly{% endblock %}</title>
+<style>
+:root{
+  --bg:#0b0e14; --panel:#121724; --panel2:#171d2e; --line:#232b40;
+  --txt:#e8ecf4; --muted:#9aa4b8; --acc:#5eead4; --acc2:#7c9aff; --warn:#fbbf24; --bad:#f87171;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.6}
+a{color:var(--acc)}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+nav.top{border-bottom:1px solid var(--line);background:rgba(11,14,20,.9);position:sticky;top:0;z-index:10}
+nav.top .wrap{display:flex;align-items:center;gap:28px;height:64px}
+.brand{font-weight:800;font-size:20px;color:var(--txt);text-decoration:none}
+.brand span{color:var(--acc)}
+nav.top .links{margin-left:auto;display:flex;gap:20px}
+nav.top .links a{color:var(--muted);text-decoration:none;font-size:14px}
+nav.top .links a:hover{color:var(--txt)}
+.btn{display:inline-block;background:var(--acc);color:#06231e;font-weight:700;padding:12px 26px;border-radius:10px;text-decoration:none;border:0;cursor:pointer;font-size:15px}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;color:var(--acc);border:1px solid var(--acc)}
+.hero{padding:88px 0 56px;text-align:center}
+.hero h1{font-size:52px;line-height:1.12;margin:0 0 18px;letter-spacing:-1px}
+.hero h1 .hl{color:var(--acc)}
+.hero p.sub{color:var(--muted);font-size:19px;max-width:640px;margin:0 auto 34px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:28px}
+.grid{display:grid;gap:20px}
+.grid.c3{grid-template-columns:repeat(3,1fr)}
+.grid.c2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:760px){.grid.c3,.grid.c2{grid-template-columns:1fr}.hero h1{font-size:36px}}
+h2.sec{font-size:30px;margin:64px 0 8px}
+p.lead{color:var(--muted);margin:0 0 28px}
+pre{background:#080b11;border:1px solid var(--line);border-radius:10px;padding:18px;overflow:auto;font-size:13px;line-height:1.55}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.k{color:var(--acc2)} .s{color:var(--acc)} .n{color:var(--warn)}
+.tag{display:inline-block;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;background:var(--panel2);border:1px solid var(--line);color:var(--muted)}
+input,textarea,select{background:#080b11;border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:10px 12px;font-size:14px;width:100%;font-family:inherit}
+textarea{min-height:110px;resize:vertical}
+label{font-size:13px;color:var(--muted);display:block;margin:14px 0 6px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:12px 14px;border-bottom:1px solid var(--line)}
+th{color:var(--muted);font-weight:600}
+footer{border-top:1px solid var(--line);margin-top:80px;padding:32px 0;color:var(--muted);font-size:13px}
+footer .wrap{display:flex;gap:24px;align-items:center}
+.mono{font-family:ui-monospace,Menlo,monospace}
+.pill{font-size:12px;padding:2px 10px;border-radius:20px;background:#0f2b26;color:var(--acc);border:1px solid #1d4a42}
+.alert{padding:12px 16px;border-radius:10px;font-size:14px;margin:14px 0;display:none}
+.alert.ok{display:block;background:#0f2b26;border:1px solid #1d4a42;color:var(--acc)}
+.alert.bad{display:block;background:#2b1215;border:1px solid #5a2027;color:var(--bad)}
+</style>
+</head>
+<body>
+<nav class="top"><div class="wrap">
+  <a class="brand" href="/">extract<span>ly</span></a>
+  <div class="links">
+    <a href="/docs">API docs</a>
+    <a href="/pricing">Pricing</a>
+    <a href="/dashboard">Dashboard</a>
+  </div>
+</div></nav>
+<div class="wrap">
+{% block body %}{% endblock %}
+</div>
+<footer><div class="wrap">
+  <span>Extractly &middot; unstructured text in, structured JSON out</span>
+  <span style="margin-left:auto">Built for Galuxium Nexus V2</span>
+</div></footer>
+{% block script %}{% endblock %}
+</body>
+</html>

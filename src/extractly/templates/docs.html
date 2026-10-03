@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}API docs: Extractly{% endblock %}
+{% block body %}
+<div class="hero" style="padding:56px 0 24px">
+  <h1>API <span class="hl">docs</span></h1>
+  <p class="sub">Plain HTTPS, JSON everywhere, Bearer auth. Base URL is this server.</p>
+</div>
+
+<h2 class="sec">Authentication</h2>
+<div class="card">
+<p>Create a key on the <a href="/dashboard">dashboard</a>, then send it as:</p>
+<pre><code>Authorization: Bearer ex_live_...</code></pre>
+</div>
+
+<h2 class="sec">Endpoints</h2>
+
+<div class="card" style="margin-bottom:20px">
+<p><span class="tag">POST</span> <span class="mono">/v1/keys</span>: create a free API key</p>
+<pre><code>curl -X POST {{ request.base_url }}v1/keys \
+  -H 'Content-Type: application/json' \
+  -d '{"label":"my zapier flow"}'
+
+<span class="s"># 200</span>
+{"key":"ex_live_...","key_id":7,"tier":"free",
+ "quota_daily":25,"note":"This key is shown once. Store it securely."}</code></pre>
+<p style="color:var(--muted);font-size:13px">Rate limited per IP ({{ cfg.key_create_per_hour }}/hour). The raw key is shown once and only its hash is stored.</p>
+</div>
+
+<div class="card" style="margin-bottom:20px">
+<p><span class="tag">POST</span> <span class="mono">/v1/extract</span>: run an extraction</p>
+<pre><code>curl -X POST {{ request.base_url }}v1/extract \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer ex_live_...' \
+  -d '{"text":"Invoice from Acme Corp dated 2026-09-15 for $1,250.00",
+       "schema":{"type":"object",
+                 "required":["vendor","date","total"],
+                 "properties":{"vendor":{"type":"string"},
+                               "date":{"type":"string"},
+                               "total":{"type":"number"}}}}'
+
+<span class="s"># 200</span>
+{"data":{"vendor":"Acme Corp","date":"2026-09-15","total":1250},
+ "confidence":1.0,
+ "model":"{{ cfg.model }}",
+ "usage":{"prompt_tokens":312,"completion_tokens":148},
+ "quota":{"used_today":3,"quota_daily":25},
+ "request_id":"req_1791015000000"}</code></pre>
+<p style="color:var(--muted);font-size:13px">Limits: text up to {{ cfg.max_text_chars }} chars, {{ cfg.extract_per_minute }} calls/minute/key, daily quota by tier. If the model cannot produce schema-valid JSON after a retry, you get <span class="mono">422 extraction_failed</span>, never fabricated data.</p>
+</div>
+
+<div class="card" style="margin-bottom:20px">
+<p><span class="tag">GET</span> <span class="mono">/v1/usage</span>: quota and consumption</p>
+<pre><code>curl {{ request.base_url }}v1/usage \
+  -H 'Authorization: Bearer ex_live_...'
+
+<span class="s"># 200</span>
+{"tier":"free","used_today":3,"quota_daily":25,
+ "resets_at":"2026-10-03T23:59:59Z"}</code></pre>
+</div>
+
+<div class="card" style="margin-bottom:20px">
+<p><span class="tag">POST</span> <span class="mono">/v1/upgrade</span>: redeem a Gumroad Pro license</p>
+<pre><code>curl -X POST {{ request.base_url }}v1/upgrade \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer ex_live_...' \
+  -d '{"license_key":"YOUR-GUMROAD-LICENSE"}'
+
+<span class="s"># 200</span>
+{"tier":"pro","quota_daily":2000}</code></pre>
+<p style="color:var(--muted);font-size:13px">The license is verified live against Gumroad. Unknown licenses get <span class="mono">402 invalid_license</span>.</p>
+</div>
+
+<h2 class="sec">Errors</h2>
+<div class="card">
+<p>Errors always look like <span class="mono">{"error":{"code":"...","message":"..."}}</span>:</p>
+<table>
+<tr><th>Code</th><th>HTTP</th><th>Meaning</th></tr>
+<tr><td class="mono">unauthorized</td><td>401</td><td>Missing or unknown API key</td></tr>
+<tr><td class="mono">bad_request</td><td>400</td><td>Bad text or schema</td></tr>
+<tr><td class="mono">extraction_failed</td><td>422</td><td>Model could not produce valid JSON</td></tr>
+<tr><td class="mono">rate_limited</td><td>429</td><td>Slow down</td></tr>
+<tr><td class="mono">quota_exceeded</td><td>429</td><td>Daily quota reached</td></tr>
+<tr><td class="mono">invalid_license</td><td>402</td><td>Gumroad license not confirmed</td></tr>
+<tr><td class="mono">model_error</td><td>502</td><td>Backend inference failed</td></tr>
+</table>
+</div>
+{% endblock %}

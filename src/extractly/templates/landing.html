@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Extractly: unstructured text in, structured JSON out{% endblock %}
+{% block body %}
+<div class="hero">
+  <span class="pill">LIVE API &middot; NVIDIA NEMOTRON POWERED</span>
+  <h1>Unstructured text in.<br><span class="hl">Structured JSON out.</span></h1>
+  <p class="sub">Extractly is a hosted extraction API for automation builders. Send messy text and a JSON Schema, get back validated data with confidence scores. No ML pipeline to babysit.</p>
+  <a class="btn" href="/dashboard">Get a free API key</a>
+  &nbsp;<a class="btn ghost" href="/docs">Read the docs</a>
+</div>
+
+<h2 class="sec">How it works</h2>
+<p class="lead">Three steps. No SDK required, plain HTTPS.</p>
+<div class="grid c3">
+  <div class="card"><b>1. Define the schema</b><p style="color:var(--muted)">Tell the API exactly what fields you want, as JSON Schema. Types are enforced, not suggested.</p></div>
+  <div class="card"><b>2. POST your text</b><p style="color:var(--muted)">Invoices, emails, tickets, notes, transcripts. One endpoint, one call.</p></div>
+  <div class="card"><b>3. Get validated JSON</b><p style="color:var(--muted)">Every response is validated against your schema before it leaves our servers. Invalid output is retried, then reported honestly, never faked.</p></div>
+</div>
+
+<h2 class="sec">Try it live</h2>
+<p class="lead">Paste your free API key from the <a href="/dashboard">dashboard</a>, then run a real extraction.</p>
+<div class="card">
+  <label>API key</label>
+  <input id="k" class="mono" placeholder="ex_live_...">
+  <label>Text to extract from</label>
+  <textarea id="t">Invoice #INV-2041 from Acme Corp, issued 2026-09-15. Total due: $1,250.00. Contact: billing@acme.example, +1-555-0142.</textarea>
+  <label>JSON Schema</label>
+  <textarea id="s" class="mono">{"type":"object","required":["vendor","invoice_id","date","total"],"properties":{"vendor":{"type":"string"},"invoice_id":{"type":"string"},"date":{"type":"string"},"total":{"type":"number"},"email":{"type":"string"},"phone":{"type":"string"}}}</textarea>
+  <p><button class="btn" id="go">Extract</button></p>
+  <div class="alert" id="msg"></div>
+  <pre id="out" style="display:none"></pre>
+</div>
+
+<h2 class="sec">Why builders pick Extractly</h2>
+<div class="grid c2">
+  <div class="card"><b>Schema-first, always validated</b><p style="color:var(--muted)">If the model output does not match your schema, we retry once, then return a clear 422. You never get silent garbage.</p></div>
+  <div class="card"><b>Honest confidence</b><p style="color:var(--muted)">A documented heuristic: 1.0 for first-try valid output, 0.8 after a retry. No black-box scores.</p></div>
+  <div class="card"><b>Usage you can audit</b><p style="color:var(--muted)">Every call returns token usage. The dashboard shows daily consumption against your quota.</p></div>
+  <div class="card"><b>Real abuse controls</b><p style="color:var(--muted)">API keys, daily quotas, per-minute rate limits, and a server kill switch. Built to survive the open internet.</p></div>
+</div>
+
+<h2 class="sec">Pricing</h2>
+<p class="lead">Start free. Pay when the volume justifies it.</p>
+<div class="grid c3">
+  <div class="card"><b>Free</b><p style="font-size:28px;margin:8px 0">$0</p><p style="color:var(--muted)">25 extractions/day<br>Community support</p><a class="btn ghost" href="/dashboard">Start free</a></div>
+  <div class="card" style="border-color:var(--acc)"><b>Pro</b><p style="font-size:28px;margin:8px 0">$29<span style="font-size:15px;color:var(--muted)">/mo</span></p><p style="color:var(--muted)">2,000 extractions/day<br>Higher rate limits<br>Email support</p><a class="btn" href="/pricing">Go Pro</a></div>
+  <div class="card"><b>Team</b><p style="font-size:28px;margin:8px 0">$99<span style="font-size:15px;color:var(--muted)">/mo</span></p><p style="color:var(--muted)">20,000 extractions/day<br>Priority support<br>Volume pricing</p><a class="btn ghost" href="/pricing">Contact us</a></div>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+const $=id=>document.getElementById(id);
+$("go").onclick=async()=>{
+  const msg=$("msg"),out=$("out");msg.className="alert";out.style.display="none";
+  let schema;try{schema=JSON.parse($("s").value)}catch(e){msg.className="alert bad";msg.textContent="Schema is not valid JSON.";return}
+  msg.className="alert ok";msg.textContent="Extracting...";
+  try{
+    const r=await fetch("/v1/extract",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+$("k").value.trim()},body:JSON.stringify({text:$("t").value,schema})});
+    const j=await r.json();
+    if(!r.ok){msg.className="alert bad";msg.textContent=(j.error&&j.error.message)||("HTTP "+r.status);return}
+    msg.className="alert ok";msg.textContent="Done in "+(j.usage.prompt_tokens+j.usage.completion_tokens)+" tokens. Confidence "+j.confidence+".";
+    out.style.display="block";out.textContent=JSON.stringify(j.data,null,2);
+  }catch(e){msg.className="alert bad";msg.textContent="Request failed: "+e}
+};
+</script>
+{% endblock %}

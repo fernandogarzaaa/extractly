@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Pricing: Extractly{% endblock %}
+{% block body %}
+<div class="hero" style="padding:56px 0 24px">
+  <h1>Pricing that scales <span class="hl">with your volume</span></h1>
+  <p class="sub">Every tier includes schema validation, confidence scores, usage metering, and the full API. No seat licenses, no platform fees.</p>
+</div>
+<div class="grid c3">
+  <div class="card">
+    <b>Free</b><p style="font-size:34px;margin:8px 0">$0</p>
+    <p style="color:var(--muted)">For trying things out and side projects.</p>
+    <table>
+      <tr><td>Extractions</td><td>25 / day</td></tr>
+      <tr><td>Rate limit</td><td>30 / minute</td></tr>
+      <tr><td>Max text</td><td>8,000 chars</td></tr>
+      <tr><td>Support</td><td>Community</td></tr>
+    </table>
+    <p><a class="btn ghost" href="/dashboard">Get a free key</a></p>
+  </div>
+  <div class="card" style="border-color:var(--acc)">
+    <b>Pro</b> <span class="pill">MOST POPULAR</span><p style="font-size:34px;margin:8px 0">$29<span style="font-size:15px;color:var(--muted)">/mo</span></p>
+    <p style="color:var(--muted)">For production automations and indie products.</p>
+    <table>
+      <tr><td>Extractions</td><td>2,000 / day</td></tr>
+      <tr><td>Rate limit</td><td>30 / minute</td></tr>
+      <tr><td>Max text</td><td>8,000 chars</td></tr>
+      <tr><td>Support</td><td>Email</td></tr>
+    </table>
+    <p><a class="btn" href="/dashboard">Upgrade with Gumroad</a></p>
+    <p style="color:var(--muted);font-size:13px">Pro is sold as a monthly license through Gumroad. Buy once, redeem the license key on your dashboard, done. Cancel anytime by not renewing.</p>
+  </div>
+  <div class="card">
+    <b>Team</b><p style="font-size:34px;margin:8px 0">$99<span style="font-size:15px;color:var(--muted)">/mo</span></p>
+    <p style="color:var(--muted)">For companies running extraction at scale.</p>
+    <table>
+      <tr><td>Extractions</td><td>20,000 / day</td></tr>
+      <tr><td>Rate limit</td><td>120 / minute</td></tr>
+      <tr><td>Max text</td><td>32,000 chars</td></tr>
+      <tr><td>Support</td><td>Priority email</td></tr>
+    </table>
+    <p><a class="btn ghost" href="/dashboard">Talk to us</a></p>
+  </div>
+</div>
+<h2 class="sec">How the money works</h2>
+<p class="lead">We keep the math boring on purpose.</p>
+<div class="card">
+<p>Each extraction costs us a fraction of a cent in model inference (NVIDIA Nemotron via Nebius Token Factory, measured per call and returned in every response). The Free tier is capped so one account can never cost us more than a few cents a day. Pro at $29/mo breaks even at roughly 15% of its quota and turns profitable fast after that. Full unit economics are published in <span class="mono">docs/MONETIZATION.md</span> in our public repo, because a monetization story you cannot audit is marketing.</p>
+</div>
+{% endblock %}

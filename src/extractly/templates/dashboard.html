@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Dashboard: Extractly{% endblock %}
+{% block body %}
+<div class="hero" style="padding:56px 0 24px">
+  <h1>Your <span class="hl">dashboard</span></h1>
+  <p class="sub">Keys live in your browser only. We store hashes, never raw keys.</p>
+</div>
+
+<div class="grid c2">
+<div class="card">
+  <b>Create a free API key</b>
+  <label>Label (optional)</label>
+  <input id="label" placeholder="e.g. zapier flow">
+  <p><button class="btn" id="newkey">Create key</button></p>
+  <div class="alert" id="kmsg"></div>
+  <pre id="kout" style="display:none"></pre>
+</div>
+<div class="card">
+  <b>Check usage</b>
+  <label>API key</label>
+  <input id="ukey" class="mono" placeholder="ex_live_...">
+  <p><button class="btn ghost" id="usage">Check usage</button></p>
+  <div class="alert" id="umsg"></div>
+  <pre id="uout" style="display:none"></pre>
+</div>
+</div>
+
+<div class="card" style="margin-top:20px">
+  <b>Upgrade to Pro</b>
+  <p style="color:var(--muted)">Buy a Pro license on Gumroad ($29/mo), then paste the license key here. We verify it live with Gumroad and your key jumps to 2,000 extractions/day.</p>
+  <label>API key</label>
+  <input id="pkey" class="mono" placeholder="ex_live_...">
+  <label>Gumroad license key</label>
+  <input id="lic" class="mono" placeholder="XXXXXX-XXXXXX-XXXXXX">
+  <p><button class="btn" id="up">Redeem license</button></p>
+  <div class="alert" id="pmsg"></div>
+</div>
+{% endblock %}
+{% block script %}
+<script>
+const $=id=>document.getElementById(id);
+function show(id,ok,txt){const e=$(id);e.className="alert "+(ok?"ok":"bad");e.textContent=txt}
+$("newkey").onclick=async()=>{
+  const r=await fetch("/v1/keys",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({label:$("label").value})});
+  const j=await r.json();
+  if(!r.ok){show("kmsg",false,(j.error&&j.error.message)||("HTTP "+r.status));return}
+  show("kmsg",true,"Key created. Copy it now, it will never be shown again.");
+  const o=$("kout");o.style.display="block";o.textContent=j.key;
+};
+$("usage").onclick=async()=>{
+  const r=await fetch("/v1/usage",{headers:{"Authorization":"Bearer "+$("ukey").value.trim()}});
+  const j=await r.json();
+  if(!r.ok){show("umsg",false,(j.error&&j.error.message)||("HTTP "+r.status));return}
+  show("umsg",true,"Tier "+j.tier+": "+j.used_today+" of "+j.quota_daily+" used today.");
+  const o=$("uout");o.style.display="block";o.textContent=JSON.stringify(j,null,2);
+};
+$("up").onclick=async()=>{
+  const r=await fetch("/v1/upgrade",{method:"POST",headers:{"Content-Type":"application/json","Authorization":"Bearer "+$("pkey").value.trim()},body:JSON.stringify({license_key:$("lic").value.trim()})});
+  const j=await r.json();
+  if(!r.ok){show("pmsg",false,(j.error&&j.error.message)||("HTTP "+r.status));return}
+  show("pmsg",true,"Upgraded to Pro: "+j.quota_daily+" extractions/day.");
+};
+</script>
+{% endblock %}
