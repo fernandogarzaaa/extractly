@@ -9,6 +9,7 @@ WorkingDirectory=/opt/extractly
 Environment=EXTRACTLY_HOST=0.0.0.0
 Environment=EXTRACTLY_PORT=3200
 Environment=EXTRACTLY_DB_PATH=/opt/extractly/extractly.db
+Environment=PYTHONPATH=/opt/extractly/src
 EnvironmentFile=/opt/extractly/extractly.env
 ExecStart=/opt/extractly/.venv/bin/python -m extractly
 Restart=always
