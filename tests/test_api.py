@@ -155,3 +155,16 @@ def test_key_creation_rate_limit(cfg):
     assert c.post("/v1/keys").status_code == 200
     r = c.post("/v1/keys")
     assert r.status_code == 429
+
+
+def test_request_ids_are_unique(cfg):
+    script = [('{"vendor":"Acme","total":1250}', (100, 40))] * 2
+    c = make_client(cfg, script)
+    key = c.post("/v1/keys").json()["key"]
+    body = {"text": "Invoice from Acme for $1,250", "schema": SCHEMA}
+    r1 = c.post("/v1/extract", headers=auth(key), json=body)
+    r2 = c.post("/v1/extract", headers=auth(key), json=body)
+    assert r1.status_code == 200 and r2.status_code == 200
+    id1, id2 = r1.json()["request_id"], r2.json()["request_id"]
+    assert id1.startswith("req_") and id2.startswith("req_")
+    assert id1 != id2, "request ids must be unique per extraction"
