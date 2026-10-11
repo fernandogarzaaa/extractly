@@ -13,6 +13,7 @@ Pages: / (landing), /pricing, /docs, /dashboard
 from __future__ import annotations
 
 import time
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -202,7 +203,7 @@ def create_app(cfg: Settings | None = None, store: Store | None = None) -> FastA
                 "completion_tokens": usage["completion_tokens"],
             },
             "quota": {"used_today": used, "quota_daily": quota},
-            "request_id": f"req_{int(started * 1000)}",
+            "request_id": f"req_{uuid.uuid4().hex[:16]}",
         }
 
     @app.post("/v1/upgrade")
