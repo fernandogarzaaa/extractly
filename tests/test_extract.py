@@ -72,3 +72,16 @@ def test_markdown_fences_stripped():
     data, conf, _ = extract(llm, "text", SCHEMA)
     assert data == {"vendor": "Acme", "total": 9}
     assert conf == 1.0
+
+
+def test_duplicate_keys_are_rejected_not_resolved():
+    """genesis json suite (duplicate_key_handling): a reply carrying the same
+    key twice is ambiguous and must not pass validation."""
+    schema = {"type": "object", "required": ["city"],
+              "properties": {"city": {"type": "string"}}}
+    fake = FakeLLM([('{"city":"Nowhere","city":"Paris"}', (1, 1))] * 2)
+    with pytest.raises(ExtractionFailed, match="duplicate key"):
+        extract(fake, "t", schema)
+    ok = FakeLLM([('{"a": {"city": "x"}, "city": "Paris"}', (1, 1))])
+    data, conf, _ = extract(ok, "t", schema)
+    assert data["city"] == "Paris" and conf == 1.0
