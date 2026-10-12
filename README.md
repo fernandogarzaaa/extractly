@@ -110,6 +110,8 @@ See `src/extractly/config.py` for the full list. The knobs that matter:
 | `EXTRACTLY_PRO_DAILY_QUOTA` | `2000` | Pro extractions/day |
 | `GUMROAD_PRODUCT_PERMALINK` | (empty) | Enables `/v1/upgrade` when set |
 | `EXTRACTLY_KILL_SWITCH` | (empty) | Set `1` to pause extractions |
+| `EXTRACTLY_LICENSE_SEATS` | `1` | How many API keys one Gumroad license may upgrade. Each redeemed license is stored as a SHA-256 hash bound to the key(s) it upgraded; reuse beyond the seat count returns `409 license_in_use`. |
+| `EXTRACTLY_TRUSTED_PROXIES` | (empty) | Comma-separated IPs/CIDRs of reverse proxies in front of Extractly (e.g. `127.0.0.1`). Only when the socket peer is one of these is `X-Forwarded-For` used for the per-IP key-creation limit; empty means the peer address is used and the header is ignored. |
 
 ## Monetization
 

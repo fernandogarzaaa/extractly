@@ -1,6 +1,6 @@
 """Tests for the SQLite store."""
 
-from extractly.db import Store, hash_key
+from extractly.db import hash_key
 
 
 def test_create_and_lookup_key(store):

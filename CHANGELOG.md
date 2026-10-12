@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- `/v1/upgrade` now records each redeemed Gumroad license (SHA-256 hash only) against the key it upgraded; one license upgrades at most `EXTRACTLY_LICENSE_SEATS` keys (default 1). Re-redeeming on the same key is idempotent.
+- Daily quota is reserved atomically before the LLM call (`UPDATE ... WHERE count < quota`), so concurrent requests can no longer overshoot it. Failed extractions give the unit back.
+- Key-creation per-IP limit honours `X-Forwarded-For` only from `EXTRACTLY_TRUSTED_PROXIES`.
+- 502 responses no longer echo the backend exception text.
+- CI runs `ruff check` (pyflakes + syntax rules, `ruff.toml`).
+- Model replies with duplicate JSON keys are rejected (and retried) instead of silently keeping the last value (found by a genesis json-suite probe).
+
 ### Added
 - CI workflow running pytest on pushes to main and on pull requests.
 - Dependabot config for pip and GitHub Actions (weekly).

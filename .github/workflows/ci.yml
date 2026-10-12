@@ -22,5 +22,7 @@ jobs:
             requirements-dev.txt
       - name: Install dependencies
         run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Lint
+        run: pip install ruff==0.17.0 && ruff check src tests
       - name: Test
         run: python -m pytest tests/ -q

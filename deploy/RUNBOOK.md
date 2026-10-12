@@ -74,6 +74,13 @@ Push to `main` on GitHub; the box pulls within 5 minutes, reinstalls if
 `requirements.txt` changed, restarts the service, and health-checks.
 The box is a pure deploy target: `git reset --hard` on every update.
 
+## Reverse proxy
+
+The default deploy serves Extractly directly on :3200, so the per-IP key
+limit uses the socket peer address. If you put nginx/Caddy in front, set
+`EXTRACTLY_TRUSTED_PROXIES=127.0.0.1` (or the proxy's address) in
+`/opt/extractly/extractly.env`, otherwise every client shares the proxy's IP.
+
 ## Troubleshooting
 
 - `systemctl status extractly`, `journalctl -u extractly -n 50`

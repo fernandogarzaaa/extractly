@@ -51,12 +51,26 @@ def _strip_fences(text: str) -> str:
     return t
 
 
+def _no_duplicate_keys(pairs: list) -> dict:
+    """object_pairs_hook: refuse ambiguous objects like {"a": 1, "a": 2}.
+
+    json.loads silently keeps the last value, so a reply could carry a
+    non-compliant and a compliant value for the same field and pass.
+    """
+    out: dict = {}
+    for key, value in pairs:
+        if key in out:
+            raise ValueError(f"duplicate key {key!r}")
+        out[key] = value
+    return out
+
+
 def _try_once(client: NebiusClient, system: str, user: str, schema: dict):
     content, usage = client.complete(system, user)
     text = _strip_fences(content)
     try:
-        data = json.loads(text)
-    except json.JSONDecodeError as e:
+        data = json.loads(text, object_pairs_hook=_no_duplicate_keys)
+    except ValueError as e:  # JSONDecodeError is a ValueError subclass
         return None, usage, f"model output was not valid JSON: {e}"
     try:
         jsonschema.validate(data, schema)
