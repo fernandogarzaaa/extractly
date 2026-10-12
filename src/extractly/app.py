@@ -12,6 +12,8 @@ Pages: / (landing), /pricing, /docs, /dashboard
 
 from __future__ import annotations
 
+import hashlib
+import ipaddress
 import time
 import uuid
 from datetime import datetime, timezone
@@ -39,12 +41,51 @@ def _err(code: str, message: str, status: int) -> JSONResponse:
     return JSONResponse({"error": {"code": code, "message": message}}, status_code=status)
 
 
+def _parse_networks(spec: str) -> list:
+    nets = []
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            nets.append(ipaddress.ip_network(part, strict=False))
+        except ValueError:
+            continue
+    return nets
+
+
+def _in_networks(ip: str, nets: list) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    return any(addr in n for n in nets)
+
+
+def client_ip(request: Request, trusted: list) -> str:
+    """Client IP, honouring X-Forwarded-For only from trusted proxies.
+
+    Walks X-Forwarded-For from the right and returns the first hop that is not
+    itself a trusted proxy, so a client cannot spoof its address by sending its
+    own header.
+    """
+    peer = request.client.host if request.client else "unknown"
+    if not trusted or not _in_networks(peer, trusted):
+        return peer
+    hops = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",")]
+    for hop in reversed([h for h in hops if h]):
+        if not _in_networks(hop, trusted):
+            return hop
+    return peer
+
+
 def create_app(cfg: Settings | None = None, store: Store | None = None) -> FastAPI:
     cfg = cfg or settings
     app = FastAPI(title="Extractly", version=cfg.version)
     app.state.cfg = cfg
     app.state.store = store or Store(cfg.db_path)
     templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+    trusted_proxies = _parse_networks(cfg.trusted_proxies)
 
     def llm_client() -> NebiusClient:
         factory = getattr(app.state, "llm_factory", None)
@@ -94,7 +135,7 @@ def create_app(cfg: Settings | None = None, store: Store | None = None) -> FastA
     @app.post("/v1/keys")
     def create_key(request: Request, body: dict | None = None):
         st: Store = app.state.store
-        ip = request.client.host if request.client else "unknown"
+        ip = client_ip(request, trusted_proxies)
         hour_ago = int(time.time()) - 3600
         if st.keys_created_from_ip_since(ip, hour_ago) >= cfg.key_create_per_hour:
             return _err("rate_limited", "too many keys created from this IP", 429)
@@ -137,15 +178,7 @@ def create_app(cfg: Settings | None = None, store: Store | None = None) -> FastA
         if st.requests_since(rec["id"], int(time.time()) - 60) >= cfg.extract_per_minute:
             st.log_request(rec["id"], "POST /v1/extract", 429, error="rate_limited")
             return _err("rate_limited", "too many requests, slow down", 429)
-        # daily quota
         quota = cfg.pro_daily_quota if rec["tier"] == "pro" else cfg.free_daily_quota
-        if st.usage_today(rec["id"], _utc_day()) >= quota:
-            st.log_request(rec["id"], "POST /v1/extract", 429, error="quota_exceeded")
-            return _err(
-                "quota_exceeded",
-                f"daily quota of {quota} extractions reached",
-                429,
-            )
         text = body.get("text")
         schema = body.get("schema")
         if not isinstance(text, str) or not text.strip():
@@ -160,10 +193,22 @@ def create_app(cfg: Settings | None = None, store: Store | None = None) -> FastA
             return _err(
                 "bad_request", "body.schema must be a non-empty JSON Schema object", 400
             )
+        # daily quota: reserve a unit atomically before the (paid) LLM call so
+        # concurrent requests cannot all pass a check-then-increment.
+        day = _utc_day()
+        used = st.reserve_usage(rec["id"], day, quota)
+        if used is None:
+            st.log_request(rec["id"], "POST /v1/extract", 429, error="quota_exceeded")
+            return _err(
+                "quota_exceeded",
+                f"daily quota of {quota} extractions reached",
+                429,
+            )
         started = time.time()
         try:
             data, confidence, usage = extract(llm_client(), text, schema)
         except ExtractionFailed as e:
+            st.release_usage(rec["id"], day)
             st.log_request(
                 rec["id"],
                 "POST /v1/extract",
@@ -174,6 +219,7 @@ def create_app(cfg: Settings | None = None, store: Store | None = None) -> FastA
             )
             return _err("extraction_failed", str(e), 422)
         except LLMError as e:
+            st.release_usage(rec["id"], day)
             st.log_request(
                 rec["id"],
                 "POST /v1/extract",
@@ -182,9 +228,8 @@ def create_app(cfg: Settings | None = None, store: Store | None = None) -> FastA
                 latency_ms=int((time.time() - started) * 1000),
                 error=str(e)[:200],
             )
-            return _err("model_error", f"extraction backend failed: {e}", 502)
+            return _err("model_error", "extraction backend failed; try again later", 502)
         latency_ms = int((time.time() - started) * 1000)
-        used = st.increment_usage(rec["id"], _utc_day())
         st.log_request(
             rec["id"],
             "POST /v1/extract",
@@ -228,7 +273,15 @@ def create_app(cfg: Settings | None = None, store: Store | None = None) -> FastA
         if not ok:
             st.log_request(rec["id"], "POST /v1/upgrade", 402, error="invalid_license")
             return _err("invalid_license", "Gumroad did not confirm this license", 402)
-        st.set_tier(rec["id"], "pro", detail="gumroad license verified")
+        license_hash = hashlib.sha256(license_key.strip().encode("utf-8")).hexdigest()
+        if not st.redeem_license(rec["id"], license_hash, cfg.license_seats):
+            st.log_request(rec["id"], "POST /v1/upgrade", 409, error="license_in_use")
+            return _err(
+                "license_in_use",
+                "this license has already been used to upgrade the maximum number"
+                " of API keys",
+                409,
+            )
         st.log_request(rec["id"], "POST /v1/upgrade", 200)
         return {"tier": "pro", "quota_daily": cfg.pro_daily_quota}
 
