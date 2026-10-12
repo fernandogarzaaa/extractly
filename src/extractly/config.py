@@ -15,6 +15,10 @@ Optional (sensible defaults for local dev):
     GUMROAD_PRODUCT_PERMALINK    Gumroad product permalink for Pro upgrades
                                  (if unset, /v1/upgrade reports 503 unconfigured)
     EXTRACTLY_KILL_SWITCH        set to "1" to refuse all extractions (abuse brake)
+    EXTRACTLY_LICENSE_SEATS      API keys one Gumroad license may upgrade (default: 1)
+    EXTRACTLY_TRUSTED_PROXIES    comma-separated IPs/CIDRs of reverse proxies whose
+                                 X-Forwarded-For is trusted for the client IP
+                                 (default: empty = use the socket peer address)
 """
 
 from __future__ import annotations
@@ -45,6 +49,8 @@ class Settings:
     extract_per_minute: int = _int("EXTRACTLY_EXTRACT_PER_MIN", 30)
     gumroad_product_permalink: str = os.environ.get("GUMROAD_PRODUCT_PERMALINK", "")
     kill_switch: bool = os.environ.get("EXTRACTLY_KILL_SWITCH", "") == "1"
+    license_seats: int = max(1, _int("EXTRACTLY_LICENSE_SEATS", 1))
+    trusted_proxies: str = os.environ.get("EXTRACTLY_TRUSTED_PROXIES", "")
     version: str = "0.1.0"
 
 

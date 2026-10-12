@@ -6,6 +6,8 @@ Tables:
     requests     append-only log of extraction attempts (no raw text stored,
                  only sizes; reasoning traces are never persisted).
     key_events   audit log for key creation / upgrade / revocation.
+    license_seats which API keys each Gumroad license (hashed) has upgraded,
+                 so one license cannot upgrade an unlimited number of keys.
 
 WAL mode is enabled for concurrent readers. For production scale the
 documented migration path is Postgres; the schema below maps 1:1.
@@ -56,6 +58,12 @@ CREATE TABLE IF NOT EXISTS key_events (
     ip         TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_requests_key_ts ON requests(key_id, ts);
+CREATE TABLE IF NOT EXISTS license_seats (
+    license_hash TEXT NOT NULL,                -- sha256 of the Gumroad license key
+    key_id       INTEGER NOT NULL REFERENCES api_keys(id),
+    ts           INTEGER NOT NULL,
+    PRIMARY KEY (license_hash, key_id)
+);
 """
 
 
@@ -136,7 +144,91 @@ class Store:
             )
             self._conn.commit()
 
+    def redeem_license(self, key_id: int, license_hash: str, seats: int) -> bool:
+        """Bind a license to a key and set it to Pro, atomically.
+
+        Returns True if the key now holds a seat on this license (newly bound,
+        or already bound before), False if every seat is taken by other keys.
+        """
+        now = int(time.time())
+        with self._lock:
+            try:
+                self._conn.execute("BEGIN IMMEDIATE")
+                bound = self._conn.execute(
+                    "SELECT 1 FROM license_seats WHERE license_hash = ? AND key_id = ?",
+                    (license_hash, key_id),
+                ).fetchone()
+                if not bound:
+                    used = self._conn.execute(
+                        "SELECT COUNT(*) FROM license_seats WHERE license_hash = ?",
+                        (license_hash,),
+                    ).fetchone()[0]
+                    if used >= seats:
+                        self._conn.rollback()
+                        return False
+                    self._conn.execute(
+                        "INSERT INTO license_seats (license_hash, key_id, ts)"
+                        " VALUES (?, ?, ?)",
+                        (license_hash, key_id, now),
+                    )
+                self._conn.execute(
+                    "UPDATE api_keys SET tier = 'pro' WHERE id = ?", (key_id,)
+                )
+                self._conn.execute(
+                    "INSERT INTO key_events (key_id, ts, event, detail)"
+                    " VALUES (?, ?, 'upgraded', ?)",
+                    (key_id, now, "gumroad license verified"),
+                )
+                self._conn.commit()
+                return True
+            except Exception:
+                self._conn.rollback()
+                raise
+
+    def license_seats_used(self, license_hash: str) -> int:
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT COUNT(*) FROM license_seats WHERE license_hash = ?",
+                (license_hash,),
+            ).fetchone()
+        return row[0]
+
     # -- usage ----------------------------------------------------------
+    def reserve_usage(self, key_id: int, day: str, quota: int) -> int | None:
+        """Atomically take one unit of today's quota.
+
+        Returns the new count, or None if the quota is already used up. Callers
+        that fail afterwards should call release_usage() to give it back.
+        """
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR IGNORE INTO usage_daily (key_id, day, count) VALUES (?, ?, 0)",
+                (key_id, day),
+            )
+            cur = self._conn.execute(
+                "UPDATE usage_daily SET count = count + 1"
+                " WHERE key_id = ? AND day = ? AND count < ?",
+                (key_id, day, quota),
+            )
+            if cur.rowcount != 1:
+                self._conn.commit()
+                return None
+            row = self._conn.execute(
+                "SELECT count FROM usage_daily WHERE key_id = ? AND day = ?",
+                (key_id, day),
+            ).fetchone()
+            self._conn.commit()
+            return row[0]
+
+    def release_usage(self, key_id: int, day: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "UPDATE usage_daily SET count = count - 1"
+                " WHERE key_id = ? AND day = ? AND count > 0",
+                (key_id, day),
+            )
+            self._conn.commit()
+
     def usage_today(self, key_id: int, day: str) -> int:
         with self._lock:
             row = self._conn.execute(
