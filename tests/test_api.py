@@ -168,3 +168,38 @@ def test_request_ids_are_unique(cfg):
     id1, id2 = r1.json()["request_id"], r2.json()["request_id"]
     assert id1.startswith("req_") and id2.startswith("req_")
     assert id1 != id2, "request ids must be unique per extraction"
+
+
+def test_invalid_json_schema_is_400_before_llm_or_quota(cfg):
+    # {"type": "strin"} is not a valid JSON Schema. It used to reach the
+    # model, then crash jsonschema.validate with SchemaError (HTTP 500)
+    # and leak the reserved quota unit.
+    c = make_client(cfg, [('{"vendor":"A"}', (10, 5))])
+    key = c.post("/v1/keys").json()["key"]
+    h = auth(key)
+    bad = {"type": "object", "properties": {"vendor": {"type": "strin"}}}
+    r = c.post("/v1/extract", headers=h, json={"text": "t", "schema": bad})
+    assert r.status_code == 400
+    assert r.json()["error"]["code"] == "bad_request"
+    assert "not a valid JSON Schema" in r.json()["error"]["message"]
+    assert c.fake.calls == 0
+    assert c.get("/v1/usage", headers=h).json()["used_today"] == 0
+
+
+def test_oversized_schema_is_400(cfg):
+    c = make_client(cfg)
+    key = c.post("/v1/keys").json()["key"]
+    big = {"type": "object", "description": "x" * (cfg.max_text_chars + 1)}
+    r = c.post("/v1/extract", headers=auth(key), json={"text": "t", "schema": big})
+    assert r.status_code == 400
+    assert c.fake.calls == 0
+
+
+def test_unexpected_error_releases_quota(cfg):
+    c = make_client(cfg, [RuntimeError("boom")])
+    c2 = TestClient(c.app, raise_server_exceptions=False)
+    key = c2.post("/v1/keys").json()["key"]
+    h = auth(key)
+    r = c2.post("/v1/extract", headers=h, json={"text": "t", "schema": SCHEMA})
+    assert r.status_code == 500
+    assert c2.get("/v1/usage", headers=h).json()["used_today"] == 0
