@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import ipaddress
+import json
 import time
 import uuid
 from datetime import datetime, timezone
@@ -22,6 +23,8 @@ from pathlib import Path
 from fastapi import Depends, FastAPI, Header, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from jsonschema.exceptions import SchemaError
+from jsonschema.validators import validator_for
 
 from . import keys as keylib
 from .config import Settings, settings
@@ -193,6 +196,20 @@ def create_app(cfg: Settings | None = None, store: Store | None = None) -> FastA
             return _err(
                 "bad_request", "body.schema must be a non-empty JSON Schema object", 400
             )
+        # The schema is pasted into the (paid) prompt: bound it like the text.
+        if len(json.dumps(schema)) > cfg.max_text_chars:
+            return _err(
+                "bad_request",
+                f"body.schema exceeds {cfg.max_text_chars} characters as JSON",
+                400,
+            )
+        # Reject an invalid JSON Schema up front. Otherwise jsonschema raised
+        # SchemaError *after* the LLM call: an unhandled 500, the model tokens
+        # spent, and the reserved quota unit never released.
+        try:
+            validator_for(schema).check_schema(schema)
+        except SchemaError as e:
+            return _err("bad_request", f"body.schema is not a valid JSON Schema: {e.message}", 400)
         # daily quota: reserve a unit atomically before the (paid) LLM call so
         # concurrent requests cannot all pass a check-then-increment.
         day = _utc_day()
@@ -229,6 +246,11 @@ def create_app(cfg: Settings | None = None, store: Store | None = None) -> FastA
                 error=str(e)[:200],
             )
             return _err("model_error", "extraction backend failed; try again later", 502)
+        except Exception:
+            # Never leak a reserved quota unit on an unexpected failure.
+            st.release_usage(rec["id"], day)
+            st.log_request(rec["id"], "POST /v1/extract", 500, input_chars=len(text), error="internal_error")
+            raise
         latency_ms = int((time.time() - started) * 1000)
         st.log_request(
             rec["id"],
